@@ -25,78 +25,65 @@
 #ifndef HORONI_LOG_HPP
 #define HORONI_LOG_HPP
 
-#include "format.hpp"
-
 #include <array>
 #include <ctime>
 #include <iostream>
+#include <string_view>
 
-enum class LogLevel : size_t {
-    Dbg,
-    Info,
-    Warn,
-    Err,
-};
-
-namespace {
-    inline auto get_time_str() -> std::string_view {
-        thread_local static std::array<char, 20> buf;
-        std::time_t time = std::time(nullptr);
-        std::tm local_time{};
-
-        #if defined(_WIN32)
-        localtime_s(&local_time, &time);
-        #elif defined(__linux__)
-        localtime_r(&time, &local_time);
-        #endif
-
-        const size_t len = std::strftime(buf.data(), buf.size(), "%F %T", &local_time);
-        return {buf.data(), len};
-    }
+namespace horoni::log {
+    enum class Level : size_t {
+        Dbg,
+        Info,
+        Warn,
+        Err,
+    };
     
-    template<class... Ts>
-    void log_(LogLevel log_level, const char *format, Ts... args) {
-        static constexpr std::array<const char *, 4> level_prefixes= {
-            "[DBG  ",
-            "\033[36m[INFO ",
-            "\033[33m[WARN ",
-            "\033[31m[ERR  "
-        };
-        const char *level_prefix = level_prefixes[static_cast<size_t>(log_level)];
-        std::cout << level_prefix
-            << get_time_str() << "]\033[0m\t"
-            << horoni::fmt::fmt(format, std::forward<Ts>(args)...) << "\n";
-    }
-}
+    namespace detail {
+        inline auto get_time_str() -> std::string_view {
+            thread_local static std::array<char, 20> buf;
+            thread_local static std::time_t prev_time = 0;
+            std::time_t time = std::time(nullptr);
+            if (time != prev_time) {
+                std::tm loc{};
 
-namespace Log {
-    inline LogLevel g_level = LogLevel::Dbg;
+                #if defined(_WIN32)
+                localtime_s(&local_time, &time);
+                #elif defined(__linux__)
+                localtime_r(&time, &loc);
+                #endif
 
-    template<class... Ts>
-    void log(const char *format, Ts... args) {
-        ::log_(g_level, format, std::forward<Ts>(args)...);
-    }
+                std::strftime(buf.data(), buf.size(), "%F %T", &loc);
+            }
+            prev_time = time;
+            return {buf.data(), buf.size()};
+        }
     
-    template<class... Ts>
-    void dbg(const char *format, Ts... args) {
-        ::log_(LogLevel::Dbg, format, std::forward<Ts>(args)...);
-    }
+        template<class... Ts>
+        void log_(Level log_level, std::string_view msg) {
+            static constexpr std::array<const char *, 4> level_prefixes= {
+                "\033[37m[DBG  ",
+                "\033[36m[INFO ",
+                "\033[33m[WARN ",
+                "\033[31m[ERR  "
+            };
+            const char *level_prefix = level_prefixes[static_cast<size_t>(log_level)];
+            std::cout << level_prefix
+                << get_time_str() << "]\033[0m\t"
+                << msg << "\n";
+        }
+    } // namespace detail
+    inline Level g_level = Level::Dbg;
 
     template<class... Ts>
-    void info(const char *format, Ts... args) {
-        ::log_(LogLevel::Info, format, std::forward<Ts>(args)...);
-    }
-    
+    void log(std::string_view  msg) { detail::log_(g_level, msg); }
     template<class... Ts>
-    void warn(const char *format, Ts... args) {
-        ::log_(LogLevel::Warn, format, std::forward<Ts>(args)...);
-    }
-    
+    void dbg(std::string_view  msg) { detail::log_(Level::Dbg,  msg); }
     template<class... Ts>
-    void err(const char *format, Ts... args) {
-        ::log_(LogLevel::Err, format, std::forward<Ts>(args)...);
-    }
-
-};
+    void info(std::string_view msg) { detail::log_(Level::Info, msg); }
+    template<class... Ts>
+    void warn(std::string_view msg) { detail::log_(Level::Warn, msg); }
+    template<class... Ts>
+    void err(std::string_view  msg) { detail::log_(Level::Err,  msg); }
+} // namespace horoni::log
 
 #endif // HORONI_LOG_HPP

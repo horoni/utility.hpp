@@ -27,14 +27,13 @@
 
 #include <array>
 #include <stdexcept>
+#include <string>
 #include <type_traits>
 
 namespace horoni::fmt {
-    namespace {
-        inline thread_local std::array<char, 1024> fmt_buffer;
-    
+    namespace detail {
         template<class T>
-        constexpr decltype(auto) fmt_arg(T&& arg) noexcept {
+        constexpr auto fmt_arg(T&& arg) noexcept {
             if constexpr (std::is_same_v<std::remove_cv_t<std::remove_reference_t<T>>, std::string> ||
                           std::is_same_v<std::remove_cv_t<std::remove_reference_t<T>>, std::string_view>) {
                 return arg.data();
@@ -42,13 +41,13 @@ namespace horoni::fmt {
                 return std::forward<T>(arg);
             }
         }
-    }
+    } // namespace detail
 
     template<class... Ts>
     inline size_t fmt_size(const char* format, Ts&&... args) {
         const size_t req_siz = std::snprintf(
             nullptr, 0,
-            format, fmt_arg(std::forward<Ts>(args))...
+            format, detail::fmt_arg(std::forward<Ts>(args))...
         );
         return req_siz;
     }
@@ -57,7 +56,7 @@ namespace horoni::fmt {
     inline size_t fmt_to(char *buf, size_t bufsiz, const char* format, Ts&&... args) {
         const size_t req_siz = std::snprintf(
             buf, bufsiz,
-            format, fmt_arg(std::forward<Ts>(args))...
+            format, detail::fmt_arg(std::forward<Ts>(args))...
         );
 
         if (req_siz < 0) {
@@ -67,37 +66,32 @@ namespace horoni::fmt {
     }
 
     template<class... Ts>
-    auto vfmt(const char* format, Ts&&... args) -> std::string {
+    auto fmt(const char* format, Ts&&... args) -> std::string {
+        thread_local static std::array<char, 1024> fmt_buffer;
         const size_t req_siz = std::snprintf(
             fmt_buffer.data(), fmt_buffer.size(),
-            format, fmt_arg(std::forward<Ts>(args))...
+            format, detail::fmt_arg(std::forward<Ts>(args))...
         );
 
         if (req_siz < fmt_buffer.size()) {
             return {fmt_buffer.data(), req_siz};
         } else if (req_siz < 0) {
-            throw std::runtime_error("horoni::fmt::vfmt(): encoding error.");
+            throw std::runtime_error("horoni::fmt::fmt(): encoding error.");
         }
 
         std::string str;
         str.resize(req_siz + 1);
         const size_t fin_siz = std::snprintf(
             str.data(), str.size(),
-            format, fmt_arg(std::forward<Ts>(args))...
+            format, detail::fmt_arg(std::forward<Ts>(args))...
         );
 
         if (fin_siz < 0 || fin_siz > str.size()) {
-            throw std::runtime_error("horoni::fmt::vfmt(): failed.");
+            throw std::runtime_error("horoni::fmt::fmt(): failed.");
         }
 
         return str;
     }
-
-    template<class... Ts>
-    auto fmt(const char* format, Ts&&... args) -> std::string {
-        // TODO(): Add format string constexpr checker
-        return vfmt(format, std::forward<Ts>(args)...);
-    }
-}
+} // namespace horoni::fmt
 
 #endif // HORONI_FORMAT_HPP
