@@ -47,7 +47,7 @@ namespace horoni::log {
                 std::tm loc{};
 
                 #if defined(_WIN32)
-                localtime_s(&local_time, &time);
+                localtime_s(&loc, &time);
                 #elif defined(__linux__)
                 localtime_r(&time, &loc);
                 #endif
