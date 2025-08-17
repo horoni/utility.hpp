@@ -36,6 +36,7 @@ namespace horoni::log {
         Info,
         Warn,
         Err,
+        Fatal,
     };
     
     namespace detail {
@@ -60,11 +61,12 @@ namespace horoni::log {
     
         template<class... Ts>
         void log_(Level log_level, std::string_view msg) {
-            static constexpr std::array<const char *, 4> level_prefixes= {
-                "\033[37m[DBG  ",
-                "\033[36m[INFO ",
-                "\033[33m[WARN ",
-                "\033[31m[ERR  "
+            static constexpr std::array<const char *, 5> level_prefixes= {
+                "\033[37m[DBG   ",
+                "\033[36m[INFO  ",
+                "\033[33m[WARN  ",
+                "\033[31m[ERR   ",
+                "\033[31m[FATAL "
             };
             const char *level_prefix = level_prefixes[static_cast<size_t>(log_level)];
             std::cout << level_prefix
@@ -84,6 +86,8 @@ namespace horoni::log {
     void warn(std::string_view msg) { detail::log_(Level::Warn, msg); }
     template<class... Ts>
     void err(std::string_view  msg) { detail::log_(Level::Err,  msg); }
+    template<class... Ts>
+    void fatal(std::string_view msg){ detail::log_(Level::Fatal,msg); exit(1); }
 } // namespace horoni::log
 
 #endif // HORONI_LOG_HPP
